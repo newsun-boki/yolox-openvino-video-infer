@@ -68,11 +68,11 @@ source ~/.bashrc
 
    Then convert model.
    ```shell
-   python3 mo.py --input_model <ONNX_MODEL> --input_shape <INPUT_SHAPE> [--data_type FP16]
+   python3 mo.py --input_model <ONNX_MODEL> --input_shape <INPUT_SHAPE> [--data_type FP16] --output_dir <ir_dir>
    ```
    For example:
    ```shell
-   python3 mo.py --input_model yolox_tiny.onnx --input_shape [1,3,416,416] --data_type FP16
+   python3 mo.py --input_model yolox_tiny.onnx --input_shape [1,3,416,416] --data_type FP16 --output_dir ~/YOLOX/
    ```  
 
    Make sure the input shape is consistent with [those](yolox_openvino.cpp#L24-L25) in cpp file. 
