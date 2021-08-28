@@ -371,9 +371,10 @@ static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
     for (size_t i = 0; i < objects.size(); i++)
     {
         const Object& obj = objects[i];
+        // if(obj.prob < 0.5) continue;
 
-        fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
-                obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
+        // fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
+        //         obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
 
         cv::Scalar color = cv::Scalar(color_list[obj.label][0], color_list[obj.label][1], color_list[obj.label][2]);
         float c_mean = cv::mean(color)[0];
@@ -409,10 +410,10 @@ static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
                     cv::FONT_HERSHEY_SIMPLEX, 0.4, txt_color, 1);
     }
 
-    cv::imwrite("_demo.jpg" , image);
-    fprintf(stderr, "save vis file\n");
-    /* cv::imshow("image", image); */
-    /* cv::waitKey(0); */
+    // cv::imwrite("_demo.jpg" , image);
+    // fprintf(stderr, "save vis file\n");
+    cv::imshow("image", image);
+    cv::waitKey(1);
 }
 
 
@@ -485,41 +486,54 @@ int main(int argc, char* argv[]) {
         // --------------------------------------------------------
         /* Read input image to a blob and set it to an infer request without resize
          * and layout conversions. */
-        cv::Mat image = imread_t(input_image_path);
-	    cv::Mat pr_img = static_resize(image);
-        Blob::Ptr imgBlob = infer_request.GetBlob(input_name);     // just wrap Mat data by Blob::Ptr
-	    blobFromImage(pr_img, imgBlob);
-
-        // infer_request.SetBlob(input_name, imgBlob);  // infer_request accepts input blob of any size
-        // -----------------------------------------------------------------------------------------------------
-
-        // --------------------------- Step 7. Do inference
-        // --------------------------------------------------------
-        /* Running the request synchronously */
-        infer_request.Infer();
-        // -----------------------------------------------------------------------------------------------------
-
-        // --------------------------- Step 8. Process output
-        // ------------------------------------------------------
-        const Blob::Ptr output_blob = infer_request.GetBlob(output_name);
-        MemoryBlob::CPtr moutput = as<MemoryBlob>(output_blob);
-        if (!moutput) {
-            throw std::logic_error("We expect output to be inherited from MemoryBlob, "
-                                   "but by fact we were not able to cast output to MemoryBlob");
+        // cv::Mat image = imread_t(input_image_path);
+        cv::Mat image;
+        cv::VideoCapture cap(0);
+        if (!cap.isOpened())
+        {
+            std::cout << "Can not open video stream: '" << std::endl;
+            return 2;
         }
-        // locked memory holder should be alive all time while access to its buffer
-        // happens
-        auto moutputHolder = moutput->rmap();
-        const float* net_pred = moutputHolder.as<const PrecisionTrait<Precision::FP32>::value_type*>();
         
-	    int img_w = image.cols;
-        int img_h = image.rows;
-	    float scale = std::min(INPUT_W / (image.cols*1.0), INPUT_H / (image.rows*1.0));
-        std::vector<Object> objects;
+        for(;;){
+            double t_start = std::chrono::system_clock::now().time_since_epoch().count();
+            cap >> image;
+            cv::Mat pr_img = static_resize(image);
+            Blob::Ptr imgBlob = infer_request.GetBlob(input_name);     // just wrap Mat data by Blob::Ptr
+            blobFromImage(pr_img, imgBlob);
 
-        decode_outputs(net_pred, objects, scale, img_w, img_h);
-        draw_objects(image, objects);
+            // infer_request.SetBlob(input_name, imgBlob);  // infer_request accepts input blob of any size
+            // -----------------------------------------------------------------------------------------------------
 
+            // --------------------------- Step 7. Do inference
+            // --------------------------------------------------------
+            /* Running the request synchronously */
+            infer_request.Infer();
+            // -----------------------------------------------------------------------------------------------------
+
+            // --------------------------- Step 8. Process output
+            // ------------------------------------------------------
+            const Blob::Ptr output_blob = infer_request.GetBlob(output_name);
+            MemoryBlob::CPtr moutput = as<MemoryBlob>(output_blob);
+            if (!moutput) {
+                throw std::logic_error("We expect output to be inherited from MemoryBlob, "
+                                    "but by fact we were not able to cast output to MemoryBlob");
+            }
+            // locked memory holder should be alive all time while access to its buffer
+            // happens
+            auto moutputHolder = moutput->rmap();
+            const float* net_pred = moutputHolder.as<const PrecisionTrait<Precision::FP32>::value_type*>();
+            
+            int img_w = image.cols;
+            int img_h = image.rows;
+            float scale = std::min(INPUT_W / (image.cols*1.0), INPUT_H / (image.rows*1.0));
+            std::vector<Object> objects;
+
+            decode_outputs(net_pred, objects, scale, img_w, img_h);
+            draw_objects(image, objects);
+            double t_end = std::chrono::system_clock::now().time_since_epoch().count();
+            printf("Average running time: %lf ms\n", (t_end - t_start) / 1e6);
+        }
             // -----------------------------------------------------------------------------------------------------
         } catch (const std::exception& ex) {
             std::cerr << ex.what() << std::endl;
