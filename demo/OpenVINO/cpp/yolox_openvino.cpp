@@ -1,6 +1,7 @@
 // Copyright (C) 2018-2021 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-//
+//./yolox_openvino /home/newsun/YOLOX/preModels/openvino_nano/yolox_nano.xml /home/newsun/Downloads/1.mp4 GPU
+
 
 #include <iterator>
 #include <memory>
@@ -23,7 +24,7 @@ using namespace InferenceEngine;
 
 static const int INPUT_W = 416;
 static const int INPUT_H = 416;
-static const int NUM_CLASSES = 80; // COCO has 80 classes. Modify this value on your own dataset.
+static const int NUM_CLASSES = 5; // COCO has 80 classes. Modify this value on your own dataset.
 
 cv::Mat static_resize(cv::Mat& img) {
     float r = std::min(INPUT_W / (img.cols*1.0), INPUT_H / (img.rows*1.0));
@@ -355,15 +356,11 @@ const float color_list[80][3] =
 static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
 {
     static const char* class_names[] = {
-        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
-        "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
-        "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag", "tie", "suitcase", "frisbee",
-        "skis", "snowboard", "sports ball", "kite", "baseball bat", "baseball glove", "skateboard", "surfboard",
-        "tennis racket", "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple",
-        "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-        "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
-        "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock", "vase", "scissors", "teddy bear",
-        "hair drier", "toothbrush"
+        "armor",
+        "car",
+        "watcher",
+        "base",
+        "ignore"
     };
 
     cv::Mat image = bgr.clone();
@@ -373,7 +370,7 @@ static void draw_objects(const cv::Mat& bgr, const std::vector<Object>& objects)
         const Object& obj = objects[i];
         // if(obj.prob < 0.5) continue;
 
-        // fprintf(stderr, "%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
+        // printf("%d = %.5f at %.2f %.2f %.2f x %.2f\n", obj.label, obj.prob,
         //         obj.rect.x, obj.rect.y, obj.rect.width, obj.rect.height);
 
         cv::Scalar color = cv::Scalar(color_list[obj.label][0], color_list[obj.label][1], color_list[obj.label][2]);
@@ -488,7 +485,7 @@ int main(int argc, char* argv[]) {
          * and layout conversions. */
         // cv::Mat image = imread_t(input_image_path);
         cv::Mat image;
-        cv::VideoCapture cap(0);
+        cv::VideoCapture cap(input_image_path);
         if (!cap.isOpened())
         {
             std::cout << "Can not open video stream: '" << std::endl;
@@ -496,7 +493,7 @@ int main(int argc, char* argv[]) {
         }
         
         for(;;){
-            double t_start = std::chrono::system_clock::now().time_since_epoch().count();
+           
             cap >> image;
             cv::Mat pr_img = static_resize(image);
             Blob::Ptr imgBlob = infer_request.GetBlob(input_name);     // just wrap Mat data by Blob::Ptr
@@ -508,7 +505,10 @@ int main(int argc, char* argv[]) {
             // --------------------------- Step 7. Do inference
             // --------------------------------------------------------
             /* Running the request synchronously */
+            double t_start = std::chrono::system_clock::now().time_since_epoch().count();
             infer_request.Infer();
+             double t_end = std::chrono::system_clock::now().time_since_epoch().count();
+            printf("Average running time: %lf ms\n", (t_end - t_start) / 1e6);
             // -----------------------------------------------------------------------------------------------------
 
             // --------------------------- Step 8. Process output
@@ -531,8 +531,7 @@ int main(int argc, char* argv[]) {
 
             decode_outputs(net_pred, objects, scale, img_w, img_h);
             draw_objects(image, objects);
-            double t_end = std::chrono::system_clock::now().time_since_epoch().count();
-            printf("Average running time: %lf ms\n", (t_end - t_start) / 1e6);
+           
         }
             // -----------------------------------------------------------------------------------------------------
         } catch (const std::exception& ex) {
